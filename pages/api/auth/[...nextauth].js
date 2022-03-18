@@ -1,23 +1,33 @@
 import NextAuth from "next-auth";
-import EmailProvider from "next-auth/providers/email";
 import GitHubProvider from "next-auth/providers/github";
 import GoogleProvider from "next-auth/providers/google";
-import { MongoDBAdapter } from "@next-auth/mongodb-adapter";
+import CredentialsProvider from "next-auth/providers/credentials";
 
-import clientPromise from "./lib/mongodb"
+// import { MongoDBAdapter } from "@next-auth/mongodb-adapter";
+// import EmailProvider from "next-auth/providers/email";
+// import clientPromise from "./lib/mongodb"
+
+import connectDb from "../../../src/lib/mongodbOrm";
+import UserModel from '../../../src/models/UserModel';
+import {validateCredentials} from '../../../src/utils/auth/signInUser'
+
+connectDb();
 
 export default NextAuth({
   providers: [
-    EmailProvider({
-      server: {
-        host: process.env.EMAIL_SERVER_HOST,
-        port: process.env.EMAIL_SERVER_PORT,
-        auth: {
-          user: process.env.EMAIL_SERVER_USER,
-          pass: process.env.EMAIL_SERVER_PASSWORD
-        }
-      },
-      from: process.env.EMAIL_FROM
+    CredentialsProvider({
+      name: "Credentials",
+
+      async authorize(credentials) {
+       const {email, password} = credentials;
+       const user = await UserModel.findOne({email});
+       
+       if(!user){
+         throw new Error('[AUTH]: Need to register first')
+       }
+
+       return validateCredentials({user, password});
+      }
     }),
 
     GitHubProvider({
@@ -31,11 +41,26 @@ export default NextAuth({
     })
   ],
 
-  adapter: MongoDBAdapter(clientPromise),
+  // using with EmailProvider
+
+  // EmailProvider({
+  //   server: {
+  //     host: process.env.EMAIL_SERVER_HOST,
+  //     port: process.env.EMAIL_SERVER_PORT,
+  //     auth: {
+  //       user: process.env.EMAIL_SERVER_USER,
+  //       pass: process.env.EMAIL_SERVER_PASSWORD
+  //     }
+  //   },
+  //   from: process.env.EMAIL_FROM
+  // }),
+  // adapter: MongoDBAdapter(clientPromise),
 
   secret: process.env.SECRET, 
 
+  database: process.env.MONGODB_URI,
+
   pages: {
-    signIn: '/signin'
+    signIn: '/signInWithPassword'
   }
 })
